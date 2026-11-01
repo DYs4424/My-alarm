@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alarm</title>
+<meta name="theme-color" content="#667eea">
+<link rel="manifest" href="manifest.json">
+<style>
+:root{--bg1:#667eea;--bg2:#764ba2;--card:rgba(255,255,255,0.15);--text:white}
+body{font-family:sans-serif;background:linear-gradient(135deg,var(--bg1),var(--bg2));min-height:100vh;margin:0;color:var(--text);padding:15px;transition:0.4s}
+body.dark{--bg1:#0f0c29;--bg2:#302b63;--card:rgba(255,255,255,0.08)}
+.container{max-width:430px;margin:0 auto}
+.card{background:var(--card);backdrop-filter:blur(16px);padding:18px;border-radius:22px;margin-bottom:14px;border:1px solid rgba(255,255,255,0.1)}
+#jamBesar{font-size:50px;font-weight:900;text-align:center;letter-spacing:2px}
+.small{font-size:12px;opacity:0.85;text-align:center}
+input,select{padding:13px;border-radius:12px;border:none;width:100%;box-sizing:border-box;margin-top:8px;color:#222;font-weight:600}
+.row{display:flex;gap:8px}
+button{padding:11px;border:none;border-radius:10px;font-weight:bold;cursor:pointer;transition:0.2s}
+button:active{transform:scale(0.95)}
+.btn-add{background:white;color:#764ba2;width:100%;margin-top:10px;font-size:14px}
+body.dark .btn-add{background:#fff;color:#302b63}
+.alarm-item{background:rgba(0,0,0,0.35);padding:14px;border-radius:14px;margin-top:10px}
+.day-btn{padding:6px 9px;font-size:11px;background:rgba(255,255,255,0.18);color:white;margin:2px;border-radius:20px;border:1px solid rgba(255,255,255,0.1)}
+.day-btn.active{background:white;color:#764ba2;box-shadow:0 2px 8px rgba(0,0,0,0.2)}
+.sound-preview{display:flex;gap:6px;margin-top:8px}
+.sound-preview button{flex:1;background:rgba(255,255,255,0.2);color:white;font-size:11px;padding:8px}
+</style>
+</head>
+<body>
+<div class="container">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <b>⏰ Alarm</b>
+    <button onclick="toggleDark()" id="btnDark" style="background:rgba(255,255,255,0.2);color:white">🌙 Gelap</button>
+  </div>
+  <div class="card" style="text-align:center;margin-top:12px"><div id="jamBesar">00:00:00</div><div class="small" id="tanggal"></div><div class="small" id="nextAlarm" style="margin-top:10px;background:rgba(0,0,0,0.25);padding:8px;border-radius:10px">Belum ada alarm</div></div>
+  <div class="card">
+    <h3 style="margin:0 0 8px 0">➕ Buat / Edit Alarm</h3>
+    <input type="text" id="namaTugas" placeholder="Contoh: Tugas PAI Hal 45">
+    <div class="row"><input type="number" id="jamAlarm" value="7" min="0" max="23" placeholder="Jam"><input type="number" id="menitAlarm" value="0" min="0" max="59" placeholder="Menit"></div>
+    <div style="margin-top:10px"><span class="small" style="text-align:left;display:block;margin-bottom:4px">🔁 Ulangi tiap:</span>
+      <button class="day-btn active" data-day="1">Sen</button><button class="day-btn active" data-day="2">Sel</button><button class="day-btn active" data-day="3">Rab</button><button class="day-btn active" data-day="4">Kam</button><button class="day-btn active" data-day="5">Jum</button><button class="day-btn active" data-day="6">Sab</button><button class="day-btn" data-day="0">Min</button>
+    </div>
+    <div style="margin-top:10px"><span class="small" style="text-align:left;display:block;margin-bottom:4px">🔔 Pilih Nada:</span>
+      <select id="suaraAlarm">
+        <option value="melody">🎵 Melodi Mewah</option>
+        <option value="880">🔊 Beep Tinggi - Kenceng</option>
+        <option value="440">🔉 Beep Rendah - Halus</option>
+      </select>
+      <div class="sound-preview">
+        <button onclick="testSound()">▶️ Test Nada</button>
+        <button onclick="stopSound()" style="background:rgba(255,100,100,0.4)">⏹️ Stop</button>
+      </div>
+    </div>
+    <input type="hidden" id="editId">
+    <button class="btn-add" onclick="tambahAlarm()">💾 SIMPAN ALARM</button>
+    <button class="btn-add" style="background:rgba(255,255,255,0.15);color:white" onclick="aktifkanNotifikasi()">🔔 Aktifkan Izin Notifikasi</button>
+  </div>
+  <div class="card"><h3 style="margin:0 0 8px 0">📋 Daftar Alarm Aktif</h3><div id="listAlarm"></div></div>
+</div>
+<script>
+let alarms=JSON.parse(localStorage.getItem('alarms_v3')||'[]');
+let selectedDays=new Set([1,2,3,4,5,6]);
+let audioCtx, osc;
+document.querySelectorAll('.day-btn').forEach(b=>{b.addEventListener('click',()=>{b.classList.toggle('active');const d=parseInt(b.dataset.day);if(selectedDays.has(d))selectedDays.delete(d);else selectedDays.add(d);})});
+function toggleDark(){document.body.classList.toggle('dark');const isDark=document.body.classList.contains('dark');localStorage.setItem('darkMode', isDark);document.getElementById('btnDark').textContent=isDark?'☀️ Terang':'🌙 Gelap';}
+if(localStorage.getItem('darkMode')==='true'){document.body.classList.add('dark');document.getElementById('btnDark').textContent='☀️ Terang';}
+function stopSound(){if(osc){try{osc.stop()}catch(e){}osc=null;}if(audioCtx){try{audioCtx.close()}catch(e){}audioCtx=null;}if(navigator.vibrate)navigator.vibrate(0);}
+function testSound(){stopSound();const v=document.getElementById('suaraAlarm').value;if(v==='melody')playMelody();else playBeep(v);}
+function playMelody(){audioCtx=new(window.AudioContext||window.webkitAudioContext)();[0,250,500,750].forEach((t,i)=>{const o=audioCtx.createOscillator();const g=audioCtx.createGain();o.frequency.value=[523,659,784,1046][i];g.gain.setValueAtTime(0.3,audioCtx.currentTime+t/1000);o.connect(g);g.connect(audioCtx.destination);o.start(audioCtx.currentTime+t/1000);o.stop(audioCtx.currentTime+t/1000+0.4)});if(navigator.vibrate)navigator.vibrate([400,150,400,150,800]);}
+function playBeep(f){try{audioCtx=new(window.AudioContext||window.webkitAudioContext)();osc=audioCtx.createOscillator();const g=audioCtx.createGain();osc.frequency.value=parseInt(f)||880;g.gain.value=0.4;osc.connect(g);g.connect(audioCtx.destination);osc.start();setTimeout(()=>{try{osc.stop()}catch(e){}},1200);if(navigator.vibrate)navigator.vibrate([600,200,600]);}catch(e){}}
+function simpan(){localStorage.setItem('alarms_v3',JSON.stringify(alarms));render();}
+function tambahAlarm(){const nama=document.getElementById('namaTugas').value||'Alarm';const jam=parseInt(document.getElementById('jamAlarm').value)||0;const menit=parseInt(document.getElementById('menitAlarm').value)||0;const suara=document.getElementById('suaraAlarm').value;const editId=document.getElementById('editId').value;const days=Array.from(selectedDays);if(days.length===0){alert('Pilih minimal 1 hari dong!');return;}if(editId){let a=alarms.find(x=>x.id==editId);if(a){a.nama=nama;a.jam=jam;a.menit=menit;a.suara=suara;a.days=days;}}else{alarms.push({id:Date.now(),nama,jam,menit,suara,days});}document.getElementById('editId').value='';document.getElementById('namaTugas').value='';simpan();}
+function hapusAlarm(id){if(confirm('Yakin hapus alarm ini?')){alarms=alarms.filter(a=>a.id!==id);simpan();}}
+function editAlarm(id){let a=alarms.find(x=>x.id===id);document.getElementById('namaTugas').value=a.nama;document.getElementById('jamAlarm').value=a.jam;document.getElementById('menitAlarm').value=a.menit;document.getElementById('suaraAlarm').value=a.suara;document.getElementById('editId').value=a.id;selectedDays=new Set(a.days);document.querySelectorAll('.day-btn').forEach(b=>{if(selectedDays.has(parseInt(b.dataset.day)))b.classList.add('active');else b.classList.remove('active');});window.scrollTo({top:0,behavior:'smooth'});}
+function snoozeAlarm(id){let a=alarms.find(x=>x.id===id);a.menit+=5;if(a.menit>=60){a.menit-=60;a.jam=(a.jam+1)%24;}simpan();}
+function render(){const list=document.getElementById('listAlarm');if(alarms.length===0){list.innerHTML='<p class="small">Belum ada alarm, bikin dulu yuk!</p>';document.getElementById('nextAlarm').textContent='Belum ada alarm';return;}list.innerHTML='';let minDiff=Infinity,nextA=null;const now=new Date();alarms.forEach(a=>{const div=document.createElement('div');div.className='alarm-item';const hariTxt=a.days.map(d=>['Min','Sen','Sel','Rab','Kam','Jum','Sab'][d]).join(', ');const suaraTxt={melody:'🎵 Melodi',880:'🔊 Beep Tinggi',440:'🔉 Beep Halus'}[a.suara]||a.suara;div.innerHTML=`<div style="display:flex;justify-content:space-between"><div><b style="font-size:16px">${String(a.jam).padStart(2,'0')}:${String(a.menit).padStart(2,'0')} - ${a.nama}</b><div class="small" style="text-align:left;margin-top:3px">📅 ${hariTxt} | ${suaraTxt}</div></div></div><div style="display:flex;gap:6px;margin-top:10px"><button onclick="editAlarm(${a.id})" style="background:#ffe082;flex:1">✏️ Edit</button><button onclick="snoozeAlarm(${a.id})" style="background:#81ecec;flex:1">😴 +5m</button><button onclick="hapusAlarm(${a.id})" style="background:#ff7675;color:white;flex:1">🗑️</button></div>`;list.appendChild(div);let t=new Date();t.setHours(a.jam,a.menit,0,0);let diff=t-now;if(diff<0)diff+=86400000;if(diff<minDiff){minDiff=diff;nextA=a;}});if(nextA){const j=Math.floor(minDiff/3600000),m=Math.floor((minDiff%3600000)/60000);document.getElementById('nextAlarm').textContent=`⏳ Selanjutnya: ${nextA.nama} dalam ${j}j ${m}m`;}}
+function cekAlarm(){const now=new Date();document.getElementById('jamBesar').textContent=now.toLocaleTimeString('id-ID',{hour12:false});document.getElementById('tanggal').textContent=now.toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});alarms.forEach(a=>{if(a.days&&!a.days.includes(now.getDay()))return;if(now.getHours()===a.jam&&now.getMinutes()===a.menit&&now.getSeconds()===0){if(a.suara==='melody')playMelody();else playBeep(a.suara);if(Notification.permission==="granted")new Notification("⏰ "+a.nama,{body:`Waktunya ${a.nama} jam ${a.jam}:${String(a.menit).padStart(2,'0')}`});setTimeout(()=>{if(confirm(`⏰ ${a.nama} BUNYI!!\nMau snooze 5 menit?`))snoozeAlarm(a.id)},300);}});}
+function aktifkanNotifikasi(){Notification.requestPermission().then(p=>{if(p==='granted'){playMelody();alert('✅ Izin aktif!');}else{alert('❌ Tolong izinkan notifikasi');}});}
+render();setInterval(cekAlarm,1000);cekAlarm();if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js')}
+</script>
+</body>
+</html>
